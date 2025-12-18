@@ -16,6 +16,9 @@ import gc
 
 import cumesh as CuMesh
 
+import meshlib.mrmeshnumpy as mrmeshnumpy
+import meshlib.mrmeshpy as mrmeshpy
+
 import nvdiffrast.torch as dr
 from flex_gemm.ops.grid_sample import grid_sample_3d
 
@@ -41,6 +44,32 @@ def convert_tensor_images_to_pil(images):
         pil_array.append(tensor2pil(image))
         
     return pil_array
+    
+def simplify_with_meshlib(vertices, faces, target=1000000):
+    current_faces_num = len(faces)
+    print(f'Current Faces Number: {current_faces_num}')
+    
+    if current_faces_num<target:
+        return
+
+    settings = mrmeshpy.DecimateSettings()
+    faces_to_delete = current_faces_num - target
+    settings.maxDeletedFaces = faces_to_delete                        
+    settings.packMesh = True
+    
+    print('Generating Meshlib Mesh ...')
+    mesh = mrmeshnumpy.meshFromFacesVerts(faces, vertices)
+    print('Packing Optimally ...')
+    mesh.packOptimally()
+    print('Decimating ...')
+    mrmeshpy.decimateMesh(mesh, settings)
+    
+    new_vertices = mrmeshnumpy.getNumpyVerts(mesh)
+    new_faces = mrmeshnumpy.getNumpyFaces(mesh.topology)               
+    
+    print(f"Reduced faces, resulting in {len(new_vertices)} vertices and {len(new_faces)} faces")
+        
+    return new_vertices, new_faces
 
 class Trellis2LoadModel:
     @classmethod
@@ -306,6 +335,7 @@ class Trellis2PostProcessMesh:
                 "remesh": ("BOOLEAN",{"default":True}),
                 "remesh_band": ("FLOAT",{"default":1.0}),
                 "remesh_project": ("FLOAT",{"default":0.0}),
+                "fill_holes": ("BOOLEAN", {"default":True}),
                 "fill_holes_max_perimeter": ("FLOAT",{"default":0.03,"min":0.001,"max":99.999,"step":0.001}),
             },
         }
@@ -316,7 +346,7 @@ class Trellis2PostProcessMesh:
     CATEGORY = "Trellis2Wrapper"
     OUTPUT_NODE = True
 
-    def process(self, mesh, remesh, remesh_band, remesh_project, fill_holes_max_perimeter):
+    def process(self, mesh, remesh, remesh_band, remesh_project, fill_holes, fill_holes_max_perimeter):
         aabb = [[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]]
         
         vertices = mesh.vertices
@@ -361,8 +391,9 @@ class Trellis2PostProcessMesh:
         
         # --- Initial Mesh Cleaning ---
         # Fills holes as much as we can before processing
-        cumesh.fill_holes(max_hole_perimeter=fill_holes_max_perimeter)
-        print(f"After filling holes: {cumesh.num_vertices} vertices, {cumesh.num_faces} faces")
+        if fill_holes:
+            cumesh.fill_holes(max_hole_perimeter=fill_holes_max_perimeter)
+            print(f"After filling holes: {cumesh.num_vertices} vertices, {cumesh.num_faces} faces")
         
         vertices, faces = cumesh.read()
             
@@ -377,7 +408,9 @@ class Trellis2PostProcessMesh:
             cumesh.remove_duplicate_faces()
             cumesh.repair_non_manifold_edges()
             cumesh.remove_small_connected_components(1e-5)
-            cumesh.fill_holes(max_hole_perimeter=fill_holes_max_perimeter)
+            
+            if fill_holes:
+                cumesh.fill_holes(max_hole_perimeter=fill_holes_max_perimeter)
             
             print(f"After initial cleanup: {cumesh.num_vertices} vertices, {cumesh.num_faces} faces")                            
                 
@@ -611,17 +644,14 @@ class Trellis2MeshWithVoxelAdvancedGenerator:
                 "sparse_structure_steps": ("INT",{"default":12, "min":1, "max":100},),
                 "sparse_structure_guidance_strength": ("FLOAT",{"default":7.5}),
                 "sparse_structure_guidance_rescale": ("FLOAT",{"default":0.7}),
-                "sparse_structure_guidance_interval": ("STRING",{"default":"0.6, 1.0"}),
                 "sparse_structure_rescale_t": ("FLOAT",{"default":5.0}),
                 "shape_steps": ("INT",{"default":12, "min":1, "max":100},),
                 "shape_guidance_strength": ("FLOAT",{"default":7.5}),
                 "shape_guidance_rescale": ("FLOAT",{"default":0.5}),
-                "shape_guidance_interval": ("STRING",{"default":"0.6, 1.0"}),
                 "shape_rescale_t": ("FLOAT",{"default":3.0}),                
                 "texture_steps": ("INT",{"default":12, "min":1, "max":100},),
                 "texture_guidance_strength": ("FLOAT",{"default":7.5}),
                 "texture_guidance_rescale": ("FLOAT",{"default":0.5}),
-                "texture_guidance_interval": ("STRING",{"default":"0.6, 1.0"}),
                 "texture_rescale_t": ("FLOAT",{"default":3.0}),                
                 "max_num_tokens": ("INT",{"default":49152,"min":0,"max":999999}),
             },
@@ -636,17 +666,14 @@ class Trellis2MeshWithVoxelAdvancedGenerator:
     def process(self, pipeline, image, seed, pipeline_type, sparse_structure_steps, 
         sparse_structure_guidance_strength, 
         sparse_structure_guidance_rescale,
-        sparse_structure_guidance_interval,
         sparse_structure_rescale_t,
         shape_steps, 
         shape_guidance_strength, 
         shape_guidance_rescale,
-        shape_guidance_interval,
         shape_rescale_t,        
         texture_steps, 
         texture_guidance_strength, 
         texture_guidance_rescale,
-        texture_guidance_interval,
         texture_rescale_t,        
         max_num_tokens):
 
@@ -680,6 +707,8 @@ class Trellis2PostProcessAndUnWrapAndRasterizer:
                 "remesh_band": ("FLOAT",{"default":1.0}),
                 "remesh_project": ("FLOAT",{"default":0.0}),
                 "target_face_num": ("INT",{"default":1000000,"min":1,"max":16000000}),
+                "simplify_method": (["Cumesh","Meshlib"],{"default":"Cumesh"}),
+                "fill_holes": ("BOOLEAN", {"default":True}),
                 "fill_holes_max_perimeter": ("FLOAT",{"default":0.03,"min":0.001,"max":99.999,"step":0.001}),
             },
         }
@@ -690,7 +719,7 @@ class Trellis2PostProcessAndUnWrapAndRasterizer:
     CATEGORY = "Trellis2Wrapper"
     OUTPUT_NODE = True
 
-    def process(self, mesh, mesh_cluster_threshold_cone_half_angle_rad, mesh_cluster_refine_iterations, mesh_cluster_global_iterations, mesh_cluster_smooth_strength, texture_size, remesh, remesh_band, remesh_project, target_face_num, fill_holes_max_perimeter):
+    def process(self, mesh, mesh_cluster_threshold_cone_half_angle_rad, mesh_cluster_refine_iterations, mesh_cluster_global_iterations, mesh_cluster_smooth_strength, texture_size, remesh, remesh_band, remesh_project, target_face_num, simplify_method, fill_holes, fill_holes_max_perimeter):
         aabb = [[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]]
         
         vertices = mesh.vertices
@@ -738,8 +767,9 @@ class Trellis2PostProcessAndUnWrapAndRasterizer:
         
         # --- Initial Mesh Cleaning ---
         # Fills holes as much as we can before processing
-        cumesh.fill_holes(max_hole_perimeter=fill_holes_max_perimeter)
-        print(f"After filling holes: {cumesh.num_vertices} vertices, {cumesh.num_faces} faces")        
+        if fill_holes:
+            cumesh.fill_holes(max_hole_perimeter=fill_holes_max_perimeter)
+            print(f"After filling holes: {cumesh.num_vertices} vertices, {cumesh.num_faces} faces")        
             
         # Build BVH for the current mesh to guide remeshing
         print(f"Building BVH for current mesh...")
@@ -752,7 +782,9 @@ class Trellis2PostProcessAndUnWrapAndRasterizer:
             cumesh.remove_duplicate_faces()
             cumesh.repair_non_manifold_edges()
             cumesh.remove_small_connected_components(1e-5)
-            cumesh.fill_holes(max_hole_perimeter=fill_holes_max_perimeter)
+            
+            if fill_holes:
+                cumesh.fill_holes(max_hole_perimeter=fill_holes_max_perimeter)
             
             print(f"After initial cleanup: {cumesh.num_vertices} vertices, {cumesh.num_faces} faces")                            
                 
@@ -765,6 +797,7 @@ class Trellis2PostProcessAndUnWrapAndRasterizer:
             scale = (aabb[1] - aabb[0]).max().item()
             resolution = grid_size.max().item()
             
+            print(f"Dual Contouring resolution: {resolution}")
             # Perform Dual Contouring remeshing (rebuilds topology)
             cumesh.init(*CuMesh.remeshing.remesh_narrow_band_dc(
                 vertices, faces,
@@ -779,7 +812,14 @@ class Trellis2PostProcessAndUnWrapAndRasterizer:
             
             print(f"After remeshing: {cumesh.num_vertices} vertices, {cumesh.num_faces} faces")
 
-        cumesh.simplify(target_face_num, verbose=True)
+        if simplify_method == 'Cumesh':
+            cumesh.simplify(target_face_num, verbose=True)
+        elif simplify_method == 'Meshlib':
+             # GPU -> CPU -> Meshlib -> CPU -> GPU
+            v, f = cumesh.read()
+            new_vertices, new_faces = simplify_with_meshlib(v.cpu().numpy(), f.cpu().numpy(), target_face_num)
+            cumesh.init(torch.from_numpy(new_vertices).float().cuda(), torch.from_numpy(new_faces).int().cuda())
+
         print(f"After simplifying: {cumesh.num_vertices} vertices, {cumesh.num_faces} faces")            
         
         print('Unwrapping ...')        
