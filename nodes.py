@@ -301,6 +301,7 @@ class Trellis2PostProcessMesh:
                 "remesh": ("BOOLEAN",{"default":True}),
                 "remesh_band": ("FLOAT",{"default":1.0}),
                 "remesh_project": ("FLOAT",{"default":0.0}),
+                "fill_holes_max_perimeter": ("FLOAT",{"default":0.03,"min":0.001,"max":99.999,"step":0.001}),
             },
         }
 
@@ -310,7 +311,7 @@ class Trellis2PostProcessMesh:
     CATEGORY = "Trellis2Wrapper"
     OUTPUT_NODE = True
 
-    def process(self, mesh, remesh, remesh_band, remesh_project):
+    def process(self, mesh, remesh, remesh_band, remesh_project, fill_holes_max_perimeter):
         aabb = [[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]]
         
         vertices = mesh.vertices
@@ -355,7 +356,7 @@ class Trellis2PostProcessMesh:
         
         # --- Initial Mesh Cleaning ---
         # Fills holes as much as we can before processing
-        cumesh.fill_holes(max_hole_perimeter=3e-2)
+        cumesh.fill_holes(max_hole_perimeter=fill_holes_max_perimeter)
         print(f"After filling holes: {cumesh.num_vertices} vertices, {cumesh.num_faces} faces")
         
         vertices, faces = cumesh.read()
@@ -371,7 +372,7 @@ class Trellis2PostProcessMesh:
             cumesh.remove_duplicate_faces()
             cumesh.repair_non_manifold_edges()
             cumesh.remove_small_connected_components(1e-5)
-            cumesh.fill_holes(max_hole_perimeter=3e-2)
+            cumesh.fill_holes(max_hole_perimeter=fill_holes_max_perimeter)
             
             print(f"After initial cleanup: {cumesh.num_vertices} vertices, {cumesh.num_faces} faces")                            
                 
@@ -637,13 +638,13 @@ class Trellis2MeshWithVoxelAdvancedGenerator:
         image = tensor2pil(image)
         
         sparse_structure_guidance_interval_list = list(map(float, sparse_structure_guidance_interval.replace(" ", "").split(',')))
-        sparse_structure_sampler_params = {"steps":sparse_structure_steps,"guidance_strength":sparse_structure_guidance_strength,"guidance_rescale":sparse_structure_guidance_rescale,"guidance_interval":sparse_structure_guidance_interval_list,"rescale_t":sparse_structure_rescale_t}
+        sparse_structure_sampler_params = {"steps":sparse_structure_steps,"guidance_strength":sparse_structure_guidance_strength,"guidance_rescale":sparse_structure_guidance_rescale,"rescale_t":sparse_structure_rescale_t}
         
         shape_guidance_interval_list = list(map(float, shape_guidance_interval.replace(" ", "").split(',')))
-        shape_slat_sampler_params = {"steps":shape_steps,"guidance_strength":shape_guidance_strength,"guidance_rescale":shape_guidance_rescale,"guidance_interval":shape_guidance_interval_list,"rescale_t":shape_rescale_t}
+        shape_slat_sampler_params = {"steps":shape_steps,"guidance_strength":shape_guidance_strength,"guidance_rescale":shape_guidance_rescale,"rescale_t":shape_rescale_t}
         
         texture_guidance_interval_list = list(map(float, texture_guidance_interval.replace(" ", "").split(',')))
-        tex_slat_sampler_params = {"steps":texture_steps,"guidance_strength":texture_guidance_strength,"guidance_rescale":texture_guidance_rescale,"guidance_interval":texture_guidance_interval_list,"rescale_t":texture_rescale_t}
+        tex_slat_sampler_params = {"steps":texture_steps,"guidance_strength":texture_guidance_strength,"guidance_rescale":texture_guidance_rescale,"rescale_t":texture_rescale_t}
         
         mesh = pipeline.run(image=image, seed=seed, pipeline_type=pipeline_type, sparse_structure_sampler_params = sparse_structure_sampler_params, shape_slat_sampler_params = shape_slat_sampler_params, tex_slat_sampler_params = tex_slat_sampler_params, max_num_tokens = max_num_tokens)[0]
         
@@ -663,7 +664,8 @@ class Trellis2PostProcessAndUnWrapAndRasterizer:
                 "remesh": ("BOOLEAN",{"default":True}),
                 "remesh_band": ("FLOAT",{"default":1.0}),
                 "remesh_project": ("FLOAT",{"default":0.0}),
-                "target_face_num": ("INT",{"default":1000000}),
+                "target_face_num": ("INT",{"default":1000000,"min":1,"max":16000000}),
+                "fill_holes_max_perimeter": ("FLOAT",{"default":0.03,"min":0.001,"max":99.999,"step":0.001}),
             },
         }
 
@@ -673,7 +675,7 @@ class Trellis2PostProcessAndUnWrapAndRasterizer:
     CATEGORY = "Trellis2Wrapper"
     OUTPUT_NODE = True
 
-    def process(self, mesh, mesh_cluster_threshold_cone_half_angle_rad, mesh_cluster_refine_iterations, mesh_cluster_global_iterations, mesh_cluster_smooth_strength, texture_size, remesh, remesh_band, remesh_project, target_face_num):
+    def process(self, mesh, mesh_cluster_threshold_cone_half_angle_rad, mesh_cluster_refine_iterations, mesh_cluster_global_iterations, mesh_cluster_smooth_strength, texture_size, remesh, remesh_band, remesh_project, target_face_num, fill_holes_max_perimeter):
         aabb = [[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]]
         
         vertices = mesh.vertices
@@ -721,7 +723,7 @@ class Trellis2PostProcessAndUnWrapAndRasterizer:
         
         # --- Initial Mesh Cleaning ---
         # Fills holes as much as we can before processing
-        cumesh.fill_holes(max_hole_perimeter=3e-2)
+        cumesh.fill_holes(max_hole_perimeter=fill_holes_max_perimeter)
         print(f"After filling holes: {cumesh.num_vertices} vertices, {cumesh.num_faces} faces")        
             
         # Build BVH for the current mesh to guide remeshing
@@ -735,7 +737,7 @@ class Trellis2PostProcessAndUnWrapAndRasterizer:
             cumesh.remove_duplicate_faces()
             cumesh.repair_non_manifold_edges()
             cumesh.remove_small_connected_components(1e-5)
-            cumesh.fill_holes(max_hole_perimeter=3e-2)
+            cumesh.fill_holes(max_hole_perimeter=fill_holes_max_perimeter)
             
             print(f"After initial cleanup: {cumesh.num_vertices} vertices, {cumesh.num_faces} faces")                            
                 
