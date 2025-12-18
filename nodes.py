@@ -12,6 +12,7 @@ import folder_paths
 import node_helpers
 import hashlib
 import cv2
+import gc
 
 import cumesh as CuMesh
 
@@ -224,6 +225,10 @@ class Trellis2SimplifyMesh:
             mesh.simplify_with_meshlib(target = target_face_num)
         else:
             raise Exception("Unknown simplification method")
+            
+        mm.soft_empty_cache()
+        torch.cuda.empty_cache()
+        gc.collect()              
         
         return (mesh,)          
         
@@ -260,7 +265,7 @@ class Trellis2ExportMesh:
         return {
             "required": {
                 "trimesh": ("TRIMESH",),
-                "filename_prefix": ("STRING", {"default": "3D/Hy3D"}),
+                "filename_prefix": ("STRING", {"default": "3D/Trellis2"}),
                 "file_format": (["glb", "obj", "ply", "stl", "3mf", "dae"],),
             },
             "optional": {
@@ -403,6 +408,11 @@ class Trellis2PostProcessMesh:
         
         mesh.vertices = new_vertices.to(mesh.device)
         mesh.faces = new_faces.to(mesh.device) 
+        
+        del cumesh
+        mm.soft_empty_cache()
+        torch.cuda.empty_cache()
+        gc.collect()          
                 
         return (mesh,)
        
@@ -580,7 +590,12 @@ class Trellis2UnWrapAndRasterizer:
             vertex_normals=normals_np,
             process=False,
             visual=Trimesh.visual.TextureVisuals(uv=uvs_np,material=material)
-        )        
+        )   
+
+        del cumesh
+        mm.soft_empty_cache()
+        torch.cuda.empty_cache()
+        gc.collect()          
                 
         return (textured_mesh,)
         
@@ -646,7 +661,7 @@ class Trellis2MeshWithVoxelAdvancedGenerator:
         texture_guidance_interval_list = list(map(float, texture_guidance_interval.replace(" ", "").split(',')))
         tex_slat_sampler_params = {"steps":texture_steps,"guidance_strength":texture_guidance_strength,"guidance_rescale":texture_guidance_rescale,"rescale_t":texture_rescale_t}
         
-        mesh = pipeline.run(image=image, seed=seed, pipeline_type=pipeline_type, sparse_structure_sampler_params = sparse_structure_sampler_params, shape_slat_sampler_params = shape_slat_sampler_params, tex_slat_sampler_params = tex_slat_sampler_params, max_num_tokens = max_num_tokens)[0]
+        mesh = pipeline.run(image=image, seed=seed, pipeline_type=pipeline_type, sparse_structure_sampler_params = sparse_structure_sampler_params, shape_slat_sampler_params = shape_slat_sampler_params, tex_slat_sampler_params = tex_slat_sampler_params, max_num_tokens = max_num_tokens)[0]         
         
         return (mesh,)    
 
@@ -874,7 +889,12 @@ class Trellis2PostProcessAndUnWrapAndRasterizer:
             process=False,
             visual=Trimesh.visual.TextureVisuals(uv=uvs_np,material=material)
         )        
-                
+        
+        del cumesh
+        mm.soft_empty_cache()
+        torch.cuda.empty_cache()
+        gc.collect()          
+        
         return (textured_mesh,)        
 
 NODE_CLASS_MAPPINGS = {

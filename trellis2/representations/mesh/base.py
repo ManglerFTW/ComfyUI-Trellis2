@@ -8,6 +8,8 @@ import numpy as np
 import meshlib.mrmeshnumpy as mrmeshnumpy
 import meshlib.mrmeshpy as mrmeshpy
 
+import gc
+
 
 class Mesh:
     def __init__(self,
@@ -45,6 +47,8 @@ class Mesh:
         mesh.get_edges()
         mesh.get_boundary_info()
         if mesh.num_boundaries == 0:
+            del mesh
+            gc.collect()
             return
         mesh.get_vertex_edge_adjacency()
         mesh.get_vertex_boundary_adjacency()
@@ -53,9 +57,14 @@ class Mesh:
         mesh.get_boundary_connected_components()
         mesh.get_boundary_loops()
         if mesh.num_boundary_loops == 0:
+            del mesh
+            gc.collect()
             return
         mesh.fill_holes(max_hole_perimeter=max_hole_perimeter)
         new_vertices, new_faces = mesh.read()
+        
+        del mesh
+        gc.collect()         
         
         self.vertices = new_vertices.to(self.device)
         self.faces = new_faces.to(self.device)
@@ -68,6 +77,9 @@ class Mesh:
         mesh.init(vertices, faces)
         mesh.remove_faces(face_mask)
         new_vertices, new_faces = mesh.read()
+        
+        del mesh
+        gc.collect()         
         
         self.vertices = new_vertices.to(self.device)
         self.faces = new_faces.to(self.device)
@@ -86,6 +98,9 @@ class Mesh:
         mesh.init(vertices, faces)
         mesh.simplify(target, verbose=verbose, options=options)
         new_vertices, new_faces = mesh.read()
+        
+        del mesh
+        gc.collect()         
         
         self.vertices = new_vertices.to(self.device)
         self.faces = new_faces.to(self.device)
