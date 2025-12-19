@@ -460,6 +460,7 @@ class Trellis2UnWrapAndRasterizer:
                 "mesh_cluster_global_iterations": ("INT",{"default":1}),
                 "mesh_cluster_smooth_strength": ("INT",{"default":1}),                
                 "texture_size": ("INT",{"default":1024, "min":512, "max":16384}),
+                "texture_alpha_mode": (["OPAQUE","MASK","BLEND"],{"default":"OPAQUE"}),
             },
         }
 
@@ -469,7 +470,7 @@ class Trellis2UnWrapAndRasterizer:
     CATEGORY = "Trellis2Wrapper"
     OUTPUT_NODE = True
 
-    def process(self, mesh, mesh_cluster_threshold_cone_half_angle_rad, mesh_cluster_refine_iterations, mesh_cluster_global_iterations, mesh_cluster_smooth_strength, texture_size):
+    def process(self, mesh, mesh_cluster_threshold_cone_half_angle_rad, mesh_cluster_refine_iterations, mesh_cluster_global_iterations, mesh_cluster_smooth_strength, texture_size, texture_alpha_mode):
         aabb = [[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]]
         
         vertices = mesh.vertices
@@ -586,7 +587,7 @@ class Trellis2UnWrapAndRasterizer:
         metallic = np.clip(attrs[..., attr_layout['metallic']].cpu().numpy() * 255, 0, 255).astype(np.uint8)
         roughness = np.clip(attrs[..., attr_layout['roughness']].cpu().numpy() * 255, 0, 255).astype(np.uint8)
         alpha = np.clip(attrs[..., attr_layout['alpha']].cpu().numpy() * 255, 0, 255).astype(np.uint8)
-        alpha_mode = 'OPAQUE'
+        alpha_mode = texture_alpha_mode
         
         # Inpainting: fill gaps (dilation) to prevent black seams at UV boundaries
         mask_inv = (~mask).astype(np.uint8)
@@ -705,6 +706,7 @@ class Trellis2PostProcessAndUnWrapAndRasterizer:
                 "simplify_method": (["Cumesh","Meshlib"],{"default":"Cumesh"}),
                 "fill_holes": ("BOOLEAN", {"default":True}),
                 "fill_holes_max_perimeter": ("FLOAT",{"default":0.03,"min":0.001,"max":99.999,"step":0.001}),
+                "texture_alpha_mode": (["OPAQUE","MASK","BLEND"],{"default":"OPAQUE"}),
             },
         }
 
@@ -714,7 +716,7 @@ class Trellis2PostProcessAndUnWrapAndRasterizer:
     CATEGORY = "Trellis2Wrapper"
     OUTPUT_NODE = True
 
-    def process(self, mesh, mesh_cluster_threshold_cone_half_angle_rad, mesh_cluster_refine_iterations, mesh_cluster_global_iterations, mesh_cluster_smooth_strength, texture_size, remesh, remesh_band, remesh_project, target_face_num, simplify_method, fill_holes, fill_holes_max_perimeter):
+    def process(self, mesh, mesh_cluster_threshold_cone_half_angle_rad, mesh_cluster_refine_iterations, mesh_cluster_global_iterations, mesh_cluster_smooth_strength, texture_size, remesh, remesh_band, remesh_project, target_face_num, simplify_method, fill_holes, fill_holes_max_perimeter, texture_alpha_mode):
         aabb = [[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]]
         
         vertices = mesh.vertices
@@ -886,7 +888,7 @@ class Trellis2PostProcessAndUnWrapAndRasterizer:
         metallic = np.clip(attrs[..., attr_layout['metallic']].cpu().numpy() * 255, 0, 255).astype(np.uint8)
         roughness = np.clip(attrs[..., attr_layout['roughness']].cpu().numpy() * 255, 0, 255).astype(np.uint8)
         alpha = np.clip(attrs[..., attr_layout['alpha']].cpu().numpy() * 255, 0, 255).astype(np.uint8)
-        alpha_mode = 'OPAQUE'
+        alpha_mode = texture_alpha_mode
         
         # Inpainting: fill gaps (dilation) to prevent black seams at UV boundaries
         mask_inv = (~mask).astype(np.uint8)
