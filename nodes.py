@@ -416,9 +416,6 @@ class Trellis2PostProcessMesh:
                 cumesh.fill_holes(max_hole_perimeter=fill_holes_max_perimeter)
             
             print(f"After initial cleanup: {cumesh.num_vertices} vertices, {cumesh.num_faces} faces")                            
-                
-            # Step 2: Unify face orientations
-            cumesh.unify_face_orientations()
         
         # --- Branch 2: Remeshing Pipeline ---
         else:
@@ -439,6 +436,9 @@ class Trellis2PostProcessMesh:
             ))
             
             print(f"After remeshing: {cumesh.num_vertices} vertices, {cumesh.num_faces} faces")                          
+        
+        # Step 2: Unify face orientations
+        cumesh.unify_face_orientations()        
         
         new_vertices, new_faces = cumesh.read()
         
@@ -811,6 +811,9 @@ class Trellis2PostProcessAndUnWrapAndRasterizer:
             ))
             
             print(f"After remeshing: {cumesh.num_vertices} vertices, {cumesh.num_faces} faces")
+            
+            # Step 2: Unify face orientations
+            cumesh.unify_face_orientations()            
 
         if simplify_method == 'Cumesh':
             cumesh.simplify(target_face_num, verbose=True)
