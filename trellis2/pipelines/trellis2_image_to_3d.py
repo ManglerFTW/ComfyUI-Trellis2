@@ -117,9 +117,7 @@ class Trellis2ImageTo3DPipeline(Pipeline):
 
         new_pipeline.image_cond_model = getattr(image_feature_extractor, args['image_cond_model']['name'])(**args['image_cond_model']['args'])
         
-        #new_pipeline.rembg_model = getattr(rembg, args['rembg_model']['name'])(**args['rembg_model']['args'])
-        
-        new_pipeline.rembg_model = None
+        new_pipeline.rembg_model = getattr(rembg, args['rembg_model']['name'])(**args['rembg_model']['args'])
         
         new_pipeline.low_vram = args.get('low_vram', True)
         new_pipeline.default_pipeline_type = args.get('default_pipeline_type', '1024_cascade')

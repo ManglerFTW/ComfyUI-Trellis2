@@ -197,6 +197,7 @@ class Trellis2MeshWithVoxelGenerator:
             "required": {
                 "pipeline": ("TRELLIS2PIPELINE",),
                 "image": ("IMAGE",),
+                "preprocess_image": ("BOOLEAN", {"default": True}), 
                 "max_views": ("INT", {"default": 4, "min": 1, "max": 16}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0x7fffffff}),
                 "pipeline_type": (["512","1024","1024_cascade","1536_cascade"],{"default":"1024_cascade"}),
@@ -213,7 +214,8 @@ class Trellis2MeshWithVoxelGenerator:
     CATEGORY = "Trellis2Wrapper"
     OUTPUT_NODE = True
 
-    def process(self, pipeline, image, seed, pipeline_type, sparse_structure_steps, shape_steps, texture_steps, max_num_tokens, max_views):
+    def process(self, pipeline, image, preprocess_image, seed, pipeline_type,
+            sparse_structure_steps, shape_steps, texture_steps, max_num_tokens, max_views):
         images = tensor_batch_to_pil_list(image, max_views=max_views)
         image_in = images[0] if len(images) == 1 else images
         
@@ -221,11 +223,16 @@ class Trellis2MeshWithVoxelGenerator:
         shape_slat_sampler_params = {"steps":shape_steps}
         tex_slat_sampler_params = {"steps":texture_steps}
         
-        mesh = pipeline.run(image=image_in, seed=seed, pipeline_type=pipeline_type,
-                            sparse_structure_sampler_params=sparse_structure_sampler_params,
-                            shape_slat_sampler_params=shape_slat_sampler_params,
-                            tex_slat_sampler_params=tex_slat_sampler_params,
-                            max_num_tokens=max_num_tokens)[0]
+        mesh = pipeline.run(
+            image=image_in,
+            seed=seed,
+            pipeline_type=pipeline_type,
+            sparse_structure_sampler_params=sparse_structure_sampler_params,
+            shape_slat_sampler_params=shape_slat_sampler_params,
+            tex_slat_sampler_params=tex_slat_sampler_params,
+            max_num_tokens=max_num_tokens,
+            preprocess_image=preprocess_image,  
+        )[0]
   
         return (mesh,)    
 
@@ -658,52 +665,79 @@ class Trellis2MeshWithVoxelAdvancedGenerator:
             "required": {
                 "pipeline": ("TRELLIS2PIPELINE",),
                 "image": ("IMAGE",),
+                "preprocess_image": ("BOOLEAN", {"default": True}),
                 "max_views": ("INT", {"default": 4, "min": 1, "max": 16}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0x7fffffff}),
-                "pipeline_type": (["512","1024","1024_cascade","1536_cascade"],{"default":"1024_cascade"}),
-                "sparse_structure_steps": ("INT",{"default":12, "min":1, "max":100},),
-                "sparse_structure_guidance_strength": ("FLOAT",{"default":7.5}),
-                "sparse_structure_guidance_rescale": ("FLOAT",{"default":0.7}),
-                "sparse_structure_rescale_t": ("FLOAT",{"default":3.0}),
-                "shape_steps": ("INT",{"default":12, "min":1, "max":100},),
-                "shape_guidance_strength": ("FLOAT",{"default":7.5}),
-                "shape_guidance_rescale": ("FLOAT",{"default":0.7}),
-                "shape_rescale_t": ("FLOAT",{"default":3.0}),                
-                "texture_steps": ("INT",{"default":12, "min":1, "max":100},),
-                "texture_guidance_strength": ("FLOAT",{"default":7.0}),
-                "texture_guidance_rescale": ("FLOAT",{"default":0.7}),
-                "texture_rescale_t": ("FLOAT",{"default":3.0}),                
-                "max_num_tokens": ("INT",{"default":49152,"min":0,"max":999999}),
+                "pipeline_type": (["512","1024","1024_cascade","1536_cascade"], {"default":"1024_cascade"}),
+                "sparse_structure_steps": ("INT", {"default":12, "min":1, "max":100}),
+                "sparse_structure_guidance_strength": ("FLOAT", {"default":7.5}),
+                "sparse_structure_guidance_rescale": ("FLOAT", {"default":0.7}),
+                "sparse_structure_rescale_t": ("FLOAT", {"default":3.0}),
+                "shape_steps": ("INT", {"default":12, "min":1, "max":100}),
+                "shape_guidance_strength": ("FLOAT", {"default":7.5}),
+                "shape_guidance_rescale": ("FLOAT", {"default":0.7}),
+                "shape_rescale_t": ("FLOAT", {"default":3.0}),
+                "texture_steps": ("INT", {"default":12, "min":1, "max":100}),
+                "texture_guidance_strength": ("FLOAT", {"default":7.0}),
+                "texture_guidance_rescale": ("FLOAT", {"default":0.7}),
+                "texture_rescale_t": ("FLOAT", {"default":3.0}),
+                "max_num_tokens": ("INT", {"default":49152, "min":0, "max":999999}),
             },
         }
 
-    RETURN_TYPES = ("MESHWITHVOXEL", )
-    RETURN_NAMES = ("mesh", )
+    RETURN_TYPES = ("MESHWITHVOXEL",)
+    RETURN_NAMES = ("mesh",)
     FUNCTION = "process"
     CATEGORY = "Trellis2Wrapper"
     OUTPUT_NODE = True
 
-    def process(self, pipeline, image, max_views, seed, pipeline_type, sparse_structure_steps, 
-        sparse_structure_guidance_strength, 
+    def process(
+        self,
+        pipeline,
+        image,
+        preprocess_image,
+        max_views,
+        seed,
+        pipeline_type,
+        sparse_structure_steps,
+        sparse_structure_guidance_strength,
         sparse_structure_guidance_rescale,
         sparse_structure_rescale_t,
-        shape_steps, 
-        shape_guidance_strength, 
+        shape_steps,
+        shape_guidance_strength,
         shape_guidance_rescale,
-        shape_rescale_t,        
-        texture_steps, 
-        texture_guidance_strength, 
+        shape_rescale_t,
+        texture_steps,
+        texture_guidance_strength,
         texture_guidance_rescale,
-        texture_rescale_t,        
-        max_num_tokens):
+        texture_rescale_t,
+        max_num_tokens,
+    ):
 
         images = tensor_batch_to_pil_list(image, max_views=max_views)
         image_in = images[0] if len(images) == 1 else images
-        
-        sparse_structure_sampler_params = {"steps":sparse_structure_steps,"guidance_strength":sparse_structure_guidance_strength,"guidance_rescale":sparse_structure_guidance_rescale,"rescale_t":sparse_structure_rescale_t}        
-        shape_slat_sampler_params = {"steps":shape_steps,"guidance_strength":shape_guidance_strength,"guidance_rescale":shape_guidance_rescale,"rescale_t":shape_rescale_t}       
-        tex_slat_sampler_params = {"steps":texture_steps,"guidance_strength":texture_guidance_strength,"guidance_rescale":texture_guidance_rescale,"rescale_t":texture_rescale_t}
-                
+
+        sparse_structure_sampler_params = {
+            "steps": sparse_structure_steps,
+            "guidance_strength": sparse_structure_guidance_strength,
+            "guidance_rescale": sparse_structure_guidance_rescale,
+            "rescale_t": sparse_structure_rescale_t,
+        }
+
+        shape_slat_sampler_params = {
+            "steps": shape_steps,
+            "guidance_strength": shape_guidance_strength,
+            "guidance_rescale": shape_guidance_rescale,
+            "rescale_t": shape_rescale_t,
+        }
+
+        tex_slat_sampler_params = {
+            "steps": texture_steps,
+            "guidance_strength": texture_guidance_strength,
+            "guidance_rescale": texture_guidance_rescale,
+            "rescale_t": texture_rescale_t,
+        }
+
         mesh = pipeline.run(
             image=image_in,
             seed=seed,
@@ -711,11 +745,11 @@ class Trellis2MeshWithVoxelAdvancedGenerator:
             sparse_structure_sampler_params=sparse_structure_sampler_params,
             shape_slat_sampler_params=shape_slat_sampler_params,
             tex_slat_sampler_params=tex_slat_sampler_params,
-            max_num_tokens=max_num_tokens
+            max_num_tokens=max_num_tokens,
+            preprocess_image=preprocess_image,
         )[0]
 
-        return (mesh,)    
-
+        return (mesh,) 
 class Trellis2PostProcessAndUnWrapAndRasterizer:
     @classmethod
     def INPUT_TYPES(s):
